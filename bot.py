@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
@@ -9,9 +10,9 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 # ============ НАСТРОЙКИ ============
-BOT_TOKEN = "8229879973:AAHHMgDTmgKXmV4RffneBckGki-JwKQqefA"
-CHANNEL_ID = "@testshola232" 
-ADMIN_IDS = [5888064962] # Замените на ваш ID
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+ADMIN_IDS = [int(x) for x in os.environ["ADMIN_IDS"].split(",")]
+CHANNEL_ID = os.environ["CHANNEL_ID"]
 # ===================================
 
 logging.basicConfig(level=logging.INFO)
