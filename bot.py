@@ -11,13 +11,12 @@ from aiogram.enums import ParseMode
 
 # ============ НАСТРОЙКИ ============
 BOT_TOKEN = os.environ.get("BOT_TOKEN") 
-CHANNEL_ID = os.environ.get("CHANNEL_ID", "@podslushano_shkola32")
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "@testshola232")
 ADMIN_IDS_RAW = os.environ.get("ADMIN_IDS", "")
 ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip()]
 
-# Проверка на наличие токена
 if not BOT_TOKEN:
-    raise ValueError("Не найден токен бота! Проверьте переменные окружения на Render.")
+    raise ValueError("Не найден токен бота! Проверьте переменные окружения.")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,7 +35,7 @@ pending_posts: dict[int, dict] = {}
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
-        "👋 Привет! Я бот канала <b>«Подслушано Школа 32»</b>.\n\n"
+        " Привет! Я бот канала <b>«Подслушано Школа 32»</b>.\n\n"
         "Напиши мне любое сообщение — оно анонимно появится у модераторов."
     )
 
@@ -47,7 +46,7 @@ async def handle_user_message(message: Message):
     
     header = (
         f"📩 <b>Новое сообщение</b>\n"
-        f"👤 {user.full_name}\n"
+        f" {user.full_name}\n"
         f"🆔 {username} (<code>{user.id}</code>)\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━"
     )
@@ -103,35 +102,33 @@ async def moderate_callback(callback: CallbackQuery):
             await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
     else:
         await callback.message.edit_text(
-            callback.message.text + "\n\n❌ <b>Отклонено</b>"
+            callback.message.text + "\n\n <b>Отклонено</b>"
         )
         await callback.answer("Отклонено")
 
-# --- ФУНКЦИЯ ДЛЯ ЗАПУСКА БОТА ---
-async def main():
-    print("🤖 Бот запущен...")
-    await dp.start_polling(bot)
-
-# --- "ОБМАНКА" ДЛЯ RENDER (Веб-сервер) ---
+# --- ВЕБ-СЕРВЕР ДЛЯ RENDER ---
 async def run_web_server():
-    """Простой сервер, чтобы Render не убивал бота"""
     app = web.Application()
-    
     async def handle(request):
         return web.Response(text="Bot is alive!")
-        
     app.router.add_get('/', handle)
-    
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 8080) # Слушаем порт 8080
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
     await site.start()
-    print("🌐 Web server started on port 8080 (для Render)")
-    
-    # Держим сервер работающим бесконечно
+    print("🌐 Web server started on port 8080")
+    # Держим сервер живым
     await asyncio.Event().wait()
 
-# --- ГЛАВНАЯ ТОЧКА ВХОДА ---
+# --- ИСПРАВЛЕННЫЙ ЗАПУСК ---
+async def main():
+    print("🤖 Бот запущен...")
+    # Создаем задачи и запускаем их параллельно
+    bot_task = asyncio.create_task(dp.start_polling(bot))
+    server_task = asyncio.create_task(run_web_server())
+    
+    # Ждем завершения любой из задач (обычно бот работает вечно)
+    await asyncio.gather(bot_task, server_task)
+
 if __name__ == "__main__":
-    # Запускаем бота и веб-сервер параллельно
-    asyncio.run(asyncio.gather(main(), run_web_server()))
+    asyncio.run(main())
