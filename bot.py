@@ -10,13 +10,11 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-# ============ НАСТРОЙКИ ============
 BOT_TOKEN = os.environ.get("BOT_TOKEN") 
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "@podslushano_shkola32")
 ADMIN_IDS_RAW = os.environ.get("ADMIN_IDS", "")
 ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip()]
 
-# Время задержки в секундах (5 минут = 300 секунд)
 COOLDOWN_SECONDS = 300 
 
 if not BOT_TOKEN:
@@ -35,7 +33,7 @@ router = Router()
 dp.include_router(router)
 
 pending_posts: dict[int, dict] = {}
-# Словарь для хранения времени последнего сообщения: {user_id: timestamp}
+
 user_cooldowns: dict[int, float] = {} 
 
 @router.message(Command("start"))
@@ -51,7 +49,6 @@ async def handle_user_message(message: Message):
     user_id = message.from_user.id
     current_time = time.time()
 
-    # Проверяем, писал ли пользователь недавно
     last_msg_time = user_cooldowns.get(user_id, 0)
     time_passed = current_time - last_msg_time
 
@@ -64,9 +61,8 @@ async def handle_user_message(message: Message):
             f"Вы сможете отправить следующее сообщение через "
             f"<b>{minutes} мин. {seconds} сек.</b>"
         )
-        return # Прерываем функцию, сообщение не отправляется админам
+        return 
 
-    # Если время прошло — запоминаем текущее время и пропускаем сообщение
     user_cooldowns[user_id] = current_time
 
     user = message.from_user
@@ -134,7 +130,6 @@ async def moderate_callback(callback: CallbackQuery):
         )
         await callback.answer("Отклонено")
 
-# --- ВЕБ-СЕРВЕР ДЛЯ RENDER ---
 async def run_web_server():
     app = web.Application()
     async def handle(request):
@@ -147,7 +142,6 @@ async def run_web_server():
     print("🌐 Web server started on port 8080")
     await asyncio.Event().wait()
 
-# --- ЗАПУСК ---
 async def main():
     print("🤖 Бот запущен...")
     bot_task = asyncio.create_task(dp.start_polling(bot))
