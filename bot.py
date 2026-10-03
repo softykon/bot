@@ -1,23 +1,26 @@
 import asyncio
 import logging
 import os
+from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.storage.memory import MemoryStorage
-# ВАЖНО: Импортируем DefaultBotProperties для новой версии
-from aiogram.client.default import DefaultBotProperties 
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 # ============ НАСТРОЙКИ ============
-BOT_TOKEN = os.environ["BOT_TOKEN"]
-ADMIN_IDS = [int(x) for x in os.environ["ADMIN_IDS"].split(",")]
-CHANNEL_ID = os.environ["CHANNEL_ID"]
-# ===================================
+BOT_TOKEN = os.environ.get("BOT_TOKEN") 
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "@podslushano_shkola32")
+ADMIN_IDS_RAW = os.environ.get("ADMIN_IDS", "")
+ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip()]
+
+# Проверка на наличие токена
+if not BOT_TOKEN:
+    raise ValueError("Не найден токен бота! Проверьте переменные окружения на Render.")
 
 logging.basicConfig(level=logging.INFO)
 
-# ИСПРАВЛЕННАЯ СТРОКА (именно она вызывала ошибку ранее):
 bot = Bot(
     token=BOT_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -45,7 +48,7 @@ async def handle_user_message(message: Message):
     header = (
         f"📩 <b>Новое сообщение</b>\n"
         f"👤 {user.full_name}\n"
-        f" {username} (<code>{user.id}</code>)\n"
+        f"🆔 {username} (<code>{user.id}</code>)\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━"
     )
 
@@ -104,9 +107,31 @@ async def moderate_callback(callback: CallbackQuery):
         )
         await callback.answer("Отклонено")
 
+# --- ФУНКЦИЯ ДЛЯ ЗАПУСКА БОТА ---
 async def main():
     print("🤖 Бот запущен...")
     await dp.start_polling(bot)
 
+# --- "ОБМАНКА" ДЛЯ RENDER (Веб-сервер) ---
+async def run_web_server():
+    """Простой сервер, чтобы Render не убивал бота"""
+    app = web.Application()
+    
+    async def handle(request):
+        return web.Response(text="Bot is alive!")
+        
+    app.router.add_get('/', handle)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080) # Слушаем порт 8080
+    await site.start()
+    print("🌐 Web server started on port 8080 (для Render)")
+    
+    # Держим сервер работающим бесконечно
+    await asyncio.Event().wait()
+
+# --- ГЛАВНАЯ ТОЧКА ВХОДА ---
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Запускаем бота и веб-сервер параллельно
+    asyncio.run(asyncio.gather(main(), run_web_server()))
