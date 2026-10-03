@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
@@ -11,12 +12,15 @@ from aiogram.enums import ParseMode
 
 # ============ НАСТРОЙКИ ============
 BOT_TOKEN = os.environ.get("BOT_TOKEN") 
-CHANNEL_ID = os.environ.get("CHANNEL_ID", "@testshola232")
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "@podslushano_shkola32")
 ADMIN_IDS_RAW = os.environ.get("ADMIN_IDS", "")
 ADMIN_IDS = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip()]
 
+# Время задержки в секундах (5 минут = 300 секунд)
+COOLDOWN_SECONDS = 300 
+
 if not BOT_TOKEN:
-    raise ValueError("Не найден токен бота! Проверьте переменные окружения.")
+    raise ValueError("Не найден токен бота!")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -31,22 +35,46 @@ router = Router()
 dp.include_router(router)
 
 pending_posts: dict[int, dict] = {}
+# Словарь для хранения времени последнего сообщения: {user_id: timestamp}
+user_cooldowns: dict[int, float] = {} 
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
-        " Привет! Я бот канала <b>«Подслушано Школа 32»</b>.\n\n"
-        "Напиши мне любое сообщение — оно анонимно появится у модераторов."
+        "👋 Привет! Я бот канала <b>«Подслушано Школа 32»</b>.\n\n"
+        "Напиши мне любое сообщение — оно анонимно появится у модераторов.\n"
+        f"⏳ <b>Важно:</b> Отправлять сообщения можно не чаще раза в 5 минут."
     )
 
 @router.message(F.chat.type == "private", ~F.text.startswith("/"))
 async def handle_user_message(message: Message):
+    user_id = message.from_user.id
+    current_time = time.time()
+
+    # Проверяем, писал ли пользователь недавно
+    last_msg_time = user_cooldowns.get(user_id, 0)
+    time_passed = current_time - last_msg_time
+
+    if time_passed < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - time_passed)
+        minutes = remaining // 60
+        seconds = remaining % 60
+        await message.answer(
+            f"⏳ <b>Пожалуйста, подождите!</b>\n\n"
+            f"Вы сможете отправить следующее сообщение через "
+            f"<b>{minutes} мин. {seconds} сек.</b>"
+        )
+        return # Прерываем функцию, сообщение не отправляется админам
+
+    # Если время прошло — запоминаем текущее время и пропускаем сообщение
+    user_cooldowns[user_id] = current_time
+
     user = message.from_user
     username = f"@{user.username}" if user.username else "без username"
     
     header = (
         f"📩 <b>Новое сообщение</b>\n"
-        f" {user.full_name}\n"
+        f"👤 {user.full_name}\n"
         f"🆔 {username} (<code>{user.id}</code>)\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━"
     )
@@ -102,7 +130,7 @@ async def moderate_callback(callback: CallbackQuery):
             await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
     else:
         await callback.message.edit_text(
-            callback.message.text + "\n\n <b>Отклонено</b>"
+            callback.message.text + "\n\n❌ <b>Отклонено</b>"
         )
         await callback.answer("Отклонено")
 
@@ -117,17 +145,13 @@ async def run_web_server():
     site = web.TCPSite(runner, '0.0.0.0', 8080)
     await site.start()
     print("🌐 Web server started on port 8080")
-    # Держим сервер живым
     await asyncio.Event().wait()
 
-# --- ИСПРАВЛЕННЫЙ ЗАПУСК ---
+# --- ЗАПУСК ---
 async def main():
     print("🤖 Бот запущен...")
-    # Создаем задачи и запускаем их параллельно
     bot_task = asyncio.create_task(dp.start_polling(bot))
     server_task = asyncio.create_task(run_web_server())
-    
-    # Ждем завершения любой из задач (обычно бот работает вечно)
     await asyncio.gather(bot_task, server_task)
 
 if __name__ == "__main__":
